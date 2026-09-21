@@ -17,8 +17,11 @@
 package org.apache.commons.lang3;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -8960,6 +8963,118 @@ public class StringUtils {
             return str.substring(offset, ix);
         }
         return str.substring(offset);
+    }
+
+    /**
+     * Truncates a String so that its encoded byte representation does not
+     * exceed the specified maximum number of bytes.
+     *
+     * <p>Truncation occurs only at Unicode code point boundaries. Grapheme
+     * cluster boundaries are not guaranteed.</p>
+     *
+     * <p>If the encoded String already fits within {@code maxBytes}, the
+     * original String is returned.</p>
+     *
+     * <pre>
+     * StringUtils.truncateToMaxBytes(null, 5, UTF_8)       = null
+     * StringUtils.truncateToMaxBytes("", 5, UTF_8)         = ""
+     * StringUtils.truncateToMaxBytes("hello", 5, UTF_8)    = "hello"
+     * StringUtils.truncateToMaxBytes("hello", 3, UTF_8)    = "hel"
+     * StringUtils.truncateToMaxBytes("\uD83D\uDE00abc", 4, UTF_8) = "\uD83D\uDE00"
+     * StringUtils.truncateToMaxBytes("\uD83D\uDE00abc", 3, UTF_8) = ""
+     * </pre>
+     *
+     * @param str the String to truncate, may be null
+     * @param maxBytes the maximum number of bytes
+     * @param charset the Charset to use, or null for the default Charset
+     * @return the truncated String, or null if the input String is null
+     * @throws IllegalArgumentException if {@code maxBytes} is negative
+     * @since 3.20
+     */
+    public static String truncateToMaxBytes(final String str, final int maxBytes, final Charset charset) {
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maxBytes cannot be negative");
+        }
+        if (str == null) {
+            return null;
+        }
+        if (str.isEmpty() || maxBytes == 0) {
+            return EMPTY;
+        }
+
+        final Charset actualCharset = Charsets.toCharset(charset);
+
+        if (str.getBytes(actualCharset).length <= maxBytes) {
+            return str;
+        }
+
+        final CharsetEncoder encoder = actualCharset.newEncoder()
+                .onMalformedInput(CodingErrorAction.REPLACE)
+                .onUnmappableCharacter(CodingErrorAction.REPLACE);
+
+        final ByteBuffer output = ByteBuffer.allocate(maxBytes);
+
+        int index = 0;
+        int lastAcceptedEnd = 0;
+
+        while (index < str.length()) {
+            final int codePointEnd = str.offsetByCodePoints(index, 1);
+            final CharBuffer input = CharBuffer.wrap(str, index, codePointEnd);
+
+            final java.nio.charset.CoderResult result = encoder.encode(input, output, false);
+
+            if (result.isOverflow()) {
+                return str.substring(0, lastAcceptedEnd);
+            }
+
+            if (result.isError()) {
+                return str.substring(0, lastAcceptedEnd);
+            }
+
+            index = codePointEnd;
+            lastAcceptedEnd = codePointEnd;
+        }
+
+        /*
+         * The complete input was accepted by encode(), but a stateful
+         * Charset may emit additional bytes when the input is finished.
+         */
+        final java.nio.charset.CoderResult endResult =
+                encoder.encode(CharBuffer.allocate(0), output, true);
+
+        if (endResult.isOverflow()) {
+            return truncateToMaxBytesFallback(str, lastAcceptedEnd, maxBytes, actualCharset);
+        }
+
+        if (endResult.isError()) {
+            return str.substring(0, lastAcceptedEnd);
+        }
+
+        final java.nio.charset.CoderResult flushResult = encoder.flush(output);
+
+        if (flushResult.isOverflow()) {
+            return truncateToMaxBytesFallback(str, lastAcceptedEnd, maxBytes, actualCharset);
+        }
+
+        if (flushResult.isError()) {
+            return str.substring(0, lastAcceptedEnd);
+        }
+
+        return str;
+    }
+
+    private static String truncateToMaxBytesFallback(final String str, final int end,
+            final int maxBytes, final Charset charset) {
+        int candidateEnd = end;
+
+        while (candidateEnd > 0) {
+            candidateEnd = str.offsetByCodePoints(candidateEnd, -1);
+            if (str.substring(0, candidateEnd).getBytes(charset).length <= maxBytes) {
+                return str.substring(0, candidateEnd);
+            }
+        }
+
+        return EMPTY;
     }
 
     /**

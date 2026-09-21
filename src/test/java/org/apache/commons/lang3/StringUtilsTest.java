@@ -3090,6 +3090,58 @@ class StringUtilsTest extends AbstractLangTest {
     }
 
     @Test
+    void testTruncateToMaxBytes() {
+        final Charset utf8 = StandardCharsets.UTF_8;
+
+        assertNull(StringUtils.truncateToMaxBytes(null, 10, utf8));
+        assertEquals("", StringUtils.truncateToMaxBytes("", 10, utf8));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> StringUtils.truncateToMaxBytes("hello", -1, utf8),
+                "maxBytes cannot be negative");
+
+        assertEquals("", StringUtils.truncateToMaxBytes("hello", 0, utf8));
+
+        assertEquals("hello", StringUtils.truncateToMaxBytes("hello", 5, utf8));
+        assertEquals("hello", StringUtils.truncateToMaxBytes("hello", 10, utf8));
+        assertEquals("hel", StringUtils.truncateToMaxBytes("hello", 3, utf8));
+
+        assertEquals("é", StringUtils.truncateToMaxBytes("éabc", 2, utf8));
+        assertEquals("", StringUtils.truncateToMaxBytes("éabc", 1, utf8));
+
+        final String emoji = "\uD83D\uDE00";
+        assertEquals(4, emoji.getBytes(utf8).length);
+        assertEquals(emoji, StringUtils.truncateToMaxBytes(emoji + "abc", 4, utf8));
+        assertEquals("", StringUtils.truncateToMaxBytes(emoji + "abc", 3, utf8));
+
+        assertEquals(
+                "hello😀",
+                StringUtils.truncateToMaxBytes("hello😀world", 9, utf8));
+
+        assertEquals(
+                "hello",
+                StringUtils.truncateToMaxBytes("hello😀world", 8, utf8));
+
+        assertEquals(
+                "hello",
+                StringUtils.truncateToMaxBytes("hello😀world", 5, utf8));
+
+        assertEquals(
+                "hello",
+                StringUtils.truncateToMaxBytes("hello", 5, null));
+
+            final String loneHighSurrogate = "\uD83D";
+        assertEquals(
+                loneHighSurrogate,
+                StringUtils.truncateToMaxBytes(loneHighSurrogate, 3, utf8));
+
+        assertEquals(
+                "",
+                StringUtils.truncateToMaxBytes(loneHighSurrogate, 0, utf8));
+    }
+
+    @Test
     void testUnCapitalize() {
         assertNull(StringUtils.uncapitalize(null));
 
