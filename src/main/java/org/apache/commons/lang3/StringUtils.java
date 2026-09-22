@@ -8963,6 +8963,52 @@ public class StringUtils {
     }
 
     /**
+     * Truncates a String to fit within the specified byte length when encoded using the given charset.
+     *
+     * <p>The returned String is a prefix of the input and ends at a Unicode code point boundary.</p>
+     *
+     * <p>A {@code null} input String returns {@code null}. A negative {@code maxBytes} throws
+     * an {@link IllegalArgumentException}. If {@code charset} is {@code null}, the default
+     * charset is used.</p>
+     *
+     * @param str the String to truncate, may be null
+     * @param maxBytes the maximum number of bytes allowed
+     * @param charset the charset to use for encoding, null uses the default charset
+     * @return the truncated String, or null if the input is null
+     * @throws IllegalArgumentException if maxBytes is negative
+     * @since 3.18.0
+     */
+    public static String truncateToByteLength(final String str, final int maxBytes, final Charset charset) {
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maxBytes cannot be negative");
+        }
+        if (str == null) {
+            return null;
+        }
+        if (str.isEmpty() || maxBytes == 0) {
+            return EMPTY;
+        }
+
+        final Charset actualCharset = Charsets.toCharset(charset);
+        final byte[] fullBytes = str.getBytes(actualCharset);
+        if (fullBytes.length <= maxBytes) {
+            return str;
+        }
+
+        int left = 0;
+        int right = str.codePointCount(0, str.length());
+        while (left < right) {
+            final int mid = (left + right + 1) / 2;
+            final int charIndex = str.offsetByCodePoints(0, mid);
+            if (str.substring(0, charIndex).getBytes(actualCharset).length <= maxBytes) {
+                left = mid;
+            } else {
+                right = mid - 1;
+            }
+        }
+        return str.substring(0, str.offsetByCodePoints(0, left));
+    }
+    /**
      * Uncapitalizes a String, changing the first character to lower case as
      * per {@link Character#toLowerCase(int)}. No other characters are changed.
      *

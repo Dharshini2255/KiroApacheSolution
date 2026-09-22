@@ -3090,6 +3090,51 @@ class StringUtilsTest extends AbstractLangTest {
     }
 
     @Test
+    void testTruncateToByteLength() {
+        assertNull(StringUtils.truncateToByteLength(null, 10, StandardCharsets.UTF_8));
+        assertEquals("", StringUtils.truncateToByteLength("", 10, StandardCharsets.UTF_8));
+
+        assertThrows(IllegalArgumentException.class,
+            () -> StringUtils.truncateToByteLength("abc", -1, StandardCharsets.UTF_8));
+        assertEquals("", StringUtils.truncateToByteLength("abc", 0, StandardCharsets.UTF_8));
+
+        assertEquals("abc", StringUtils.truncateToByteLength("abc", 3, StandardCharsets.UTF_8));
+        assertEquals("ab", StringUtils.truncateToByteLength("abc", 2, StandardCharsets.UTF_8));
+
+        assertEquals("caf", StringUtils.truncateToByteLength("café", 4, StandardCharsets.UTF_8));
+        assertEquals("café", StringUtils.truncateToByteLength("café", 5, StandardCharsets.UTF_8));
+
+        assertEquals("你", StringUtils.truncateToByteLength("你好", 3, StandardCharsets.UTF_8));
+        assertEquals("你好", StringUtils.truncateToByteLength("你好", 6, StandardCharsets.UTF_8));
+
+        assertEquals("", StringUtils.truncateToByteLength("😀abc", 3, StandardCharsets.UTF_8));
+        assertEquals("😀", StringUtils.truncateToByteLength("😀abc", 4, StandardCharsets.UTF_8));
+        assertEquals("😀a", StringUtils.truncateToByteLength("😀abc", 5, StandardCharsets.UTF_8));
+
+        assertEquals("ab", StringUtils.truncateToByteLength("abé", 2, StandardCharsets.ISO_8859_1));
+        assertEquals("abé", StringUtils.truncateToByteLength("abé", 3, StandardCharsets.ISO_8859_1));
+
+        assertEquals("a", StringUtils.truncateToByteLength("abc", 2, StandardCharsets.UTF_16LE));
+        assertEquals("ab", StringUtils.truncateToByteLength("abc", 4, StandardCharsets.UTF_16LE));
+
+        assertEquals("", StringUtils.truncateToByteLength("😀a", 3, StandardCharsets.UTF_16LE));
+        assertEquals("😀", StringUtils.truncateToByteLength("😀a", 4, StandardCharsets.UTF_16LE));
+        assertEquals("😀a", StringUtils.truncateToByteLength("😀a", 6, StandardCharsets.UTF_16LE));
+        final String input = "abcdef";
+        assertEquals(
+            StringUtils.truncateToByteLength(input, 3, Charset.defaultCharset()),
+            StringUtils.truncateToByteLength(input, 3, null));
+
+        final String mixed = "Hello 世界 😀 café";
+        for (int maxBytes = 0; maxBytes <= 50; maxBytes++) {
+            final String result = StringUtils.truncateToByteLength(
+                mixed, maxBytes, StandardCharsets.UTF_8);
+            assertTrue(mixed.startsWith(result));
+            assertTrue(result.getBytes(StandardCharsets.UTF_8).length <= maxBytes);
+    }
+}
+
+    @Test
     void testUnCapitalize() {
         assertNull(StringUtils.uncapitalize(null));
 
